@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State var ringSessionManager = RingSessionManager()
+    @State private var isBreathingDemoActive = false
 
     var body: some View {
         List {
@@ -27,7 +28,8 @@ struct ContentView: View {
                 }
             })
 
-            if ringSessionManager.peripheralConnected {
+            // Show breathing section if connected OR demo mode
+            if ringSessionManager.peripheralConnected || isBreathingDemoActive {
                 Section("BREATHING MONITORING", content: {
                     makeBreathingMonitorView()
                 })
@@ -37,6 +39,22 @@ struct ContentView: View {
                         makeEventsView(session: session)
                     })
                 }
+            }
+
+            // Demo mode section (for testing without ring)
+            Section("DEMO MODE") {
+                Toggle("Breathing Demo", isOn: $isBreathingDemoActive)
+                    .onChange(of: isBreathingDemoActive) { _, newValue in
+                        if newValue {
+                            ringSessionManager.startBreathingDemo()
+                        } else {
+                            ringSessionManager.stopBreathingDemo()
+                        }
+                    }
+
+                Text("Test breathing UI without ring connection")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }.listStyle(.insetGrouped)
     }

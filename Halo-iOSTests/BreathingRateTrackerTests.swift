@@ -5,11 +5,10 @@
 //  Created for Halo-iOS
 //
 
-import XCTest
 @testable import Halo_iOS
+import XCTest
 
 final class BreathingRateTrackerTests: XCTestCase {
-
     var tracker: BreathingRateTracker!
 
     override func setUp() {

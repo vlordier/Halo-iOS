@@ -109,6 +109,28 @@ class RingSessionManager: NSObject {
         }
     }
 
+    // MARK: - Demo Mode (for testing without ring)
+
+    func startBreathingDemo() {
+        print("Starting breathing demo mode...")
+        do {
+            breathingSession = BreathingDataStore.shared.startNewSession()
+            try breathingEngine?.start()
+            print("Breathing demo started - speak or breathe near the microphone")
+        } catch {
+            print("Failed to start breathing demo: \(error)")
+        }
+    }
+
+    func stopBreathingDemo() {
+        print("Stopping breathing demo mode...")
+        breathingEngine?.stop()
+        BreathingDataStore.shared.endCurrentSession()
+        breathingSession = nil
+        currentBreathingRate = 0
+        currentBreathingState = .none
+    }
+
     func removeRing() {
         guard let currentRing else {
             return
