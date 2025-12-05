@@ -8,10 +8,9 @@
 import SwiftUI
 
 struct HeartRateView: View {
-    
     @Environment(RingSessionManager.self) private var ringSessionManager
     @State var isStreamingHR: Bool = false
-    
+
     var body: some View {
         ScrollView {
             VStack {
@@ -21,13 +20,13 @@ struct HeartRateView: View {
                         .font(.subheadline)
                         .foregroundStyle(.pink)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    
+
                     HStack(alignment: .lastTextBaseline) {
                         Text("--")
                             .font(.largeTitle)
                             .fontWeight(.semibold)
                             .contentTransition(.numericText())
-                        
+
                         Text("BPM")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -35,7 +34,7 @@ struct HeartRateView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical)
-                    
+
                     Button(action: {
                         isStreamingHR.toggle()
                         if isStreamingHR {
@@ -43,7 +42,7 @@ struct HeartRateView: View {
                         } else {
                             ringSessionManager.startRealTimeStreaming(type: .heartRate)
                         }
-                        
+
                     }, label: {
                         Group {
                             if isStreamingHR {
@@ -55,7 +54,6 @@ struct HeartRateView: View {
                                     .fontWeight(.medium)
                                     .frame(maxWidth: .infinity, alignment: .center)
                             }
-                            
                         }
                         .frame(height: 50)
                         .foregroundStyle(.white)
@@ -65,7 +63,6 @@ struct HeartRateView: View {
                                 .fill(Color(.pink))
                         }
                     })
-                        
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,8 +70,6 @@ struct HeartRateView: View {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .fill(Color(.systemGray6))
                 }
-                
-                
             }
             .padding(.horizontal)
         }
@@ -89,4 +84,3 @@ struct HeartRateView: View {
 #Preview {
     ContentView(ringSessionManager: PreviewRingSessionManager())
 }
-

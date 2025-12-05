@@ -13,6 +13,7 @@ import SwiftUI
 @Observable
 class RingSessionManager: NSObject {
     var peripheralConnected = false
+    var peripheralReady = false
     var pickerDismissed = true
 
     var currentRing: ASAccessory?
@@ -29,6 +30,11 @@ class RingSessionManager: NSObject {
     var currentBreathingState: BreathingState = .none
     var breathingSession: BreathingSession?
 
+    // Service UUIDs
+    private static let mainServiceUUID = "DE5BF728-D711-4E47-AF26-65E3012A5DC7"
+    private static let mainWriteCharacteristicUUID = "DE5BF72A-D711-4E47-AF26-65E3012A5DC7"
+    private static let mainNotifyCharacteristicUUID = "DE5BF729-D711-4E47-AF26-65E3012A5DC7"
+
     private static let ringServiceUUID = "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
     private static let uartRxCharacteristicUUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     private static let uartTxCharacteristicUUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -37,9 +43,17 @@ class RingSessionManager: NSObject {
     private static let deviceHardwareUUID = "00002A27-0000-1000-8000-00805F9B34FB"
     private static let deviceFirmwareUUID = "00002A26-0000-1000-8000-00805F9B34FB"
 
+    // Realtime
+    private static let CMD_START_REAL_TIME: UInt8 = 105
+    private static let CMD_STOP_REAL_TIME: UInt8 = 106
+
+    // Battery
+    private static let CMD_BATTERY: UInt8 = 3
+    var batteryStatusCallback: ((BatteryInfo) -> Void)?
+
     private static let ring: ASPickerDisplayItem = {
         let descriptor = ASDiscoveryDescriptor()
-        descriptor.bluetoothServiceUUID = CBUUID(string: ringServiceUUID)
+        descriptor.bluetoothCompanyIdentifier = ASBluetoothCompanyIdentifier(4_660)
 
         return ASPickerDisplayItem(
             name: "COLMI R02 Ring",
@@ -47,8 +61,6 @@ class RingSessionManager: NSObject {
             descriptor: descriptor
         )
     }()
-
-    private var characteristicsDiscovered = false
 
     override init() {
         super.init()
@@ -145,6 +157,7 @@ class RingSessionManager: NSObject {
     }
 
     private func handleSessionEvent(event: ASAccessoryEvent) {
+        print(event)
         switch event.eventType {
         case .accessoryAdded, .accessoryChanged:
             guard let ring = event.accessory else {
@@ -195,7 +208,11 @@ extension RingSessionManager: CBCentralManagerDelegate {
         print("DEBUG: Connected to peripheral: \(peripheral)")
         peripheral.delegate = self
         print("DEBUG: Discovering services...")
-        peripheral.discoverServices([CBUUID(string: Self.ringServiceUUID)])
+        peripheral.discoverServices([
+            CBUUID(string: Self.ringServiceUUID),
+            CBUUID(string: Self.deviceInfoServiceUUID),
+            CBUUID(string: Self.mainServiceUUID),
+        ])
 
         peripheralConnected = true
 
@@ -223,7 +240,7 @@ extension RingSessionManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: (any Error)?) {
         print("Disconnected from peripheral: \(peripheral)")
         peripheralConnected = false
-        characteristicsDiscovered = false
+        peripheralReady = false
 
         // Stop breathing detection
         stopBreathingDetection()
@@ -246,12 +263,17 @@ extension RingSessionManager: CBPeripheralDelegate {
 
         print("DEBUG: Found \(services.count) services")
         for service in services {
-            if service.uuid == CBUUID(string: Self.ringServiceUUID) {
+            switch service.uuid {
+            case CBUUID(string: Self.ringServiceUUID):
                 print("DEBUG: Found ring service, discovering characteristics...")
                 peripheral.discoverCharacteristics([
                     CBUUID(string: Self.uartRxCharacteristicUUID),
                     CBUUID(string: Self.uartTxCharacteristicUUID),
                 ], for: service)
+            case CBUUID(string: Self.deviceInfoServiceUUID):
+                print("DEBUG: Found device info service")
+            default:
+                break
             }
         }
     }
@@ -277,17 +299,38 @@ extension RingSessionManager: CBPeripheralDelegate {
                 print("DEBUG: Found other characteristic: \(characteristic.uuid)")
             }
         }
-        characteristicsDiscovered = true
+        peripheralReady = true
+        print("ready")
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if characteristic.uuid == CBUUID(string: Self.uartTxCharacteristicUUID) {
-            guard let value = characteristic.value else {
-                return
+        guard let value = characteristic.value else {
+            print("Failed to read characteristic value: \(String(describing: error))")
+            return
+        }
+
+        let packet = [UInt8](value)
+
+        switch packet[0] {
+        case RingSessionManager.CMD_BATTERY:
+            handleBatteryResponse(packet: packet)
+        case RingSessionManager.CMD_START_REAL_TIME:
+            let readingType = RealTimeReading(rawValue: packet[1]) ?? .heartRate
+            let errorCode = packet[2]
+
+            if errorCode == 0 {
+                let readingValue = packet[3]
+                print("Real-Time Reading - Type: \(readingType), Value: \(readingValue)")
+            } else {
+                print("Error in reading - Type: \(readingType), Error Code: \(errorCode)")
             }
-            switch value[0] {
-            default:
-                print("Unknown sensor subtype: \(value[1])")
+        default:
+            break
+        }
+
+        if characteristic.uuid == CBUUID(string: Self.uartTxCharacteristicUUID) {
+            if let value = characteristic.value {
+                print("Received value: \(value) : \([UInt8](value))")
             }
         }
     }
@@ -298,5 +341,79 @@ extension RingSessionManager: CBPeripheralDelegate {
         } else {
             print("Write to characteristic successful")
         }
+    }
+}
+
+// MARK: - RealTime Streaming
+
+extension RingSessionManager {
+    func startRealTimeStreaming(type: RealTimeReading) {
+        sendRealTimeCommand(command: RingSessionManager.CMD_START_REAL_TIME, type: type, action: .start)
+    }
+
+    func continueRealTimeStreaming(type: RealTimeReading) {
+        sendRealTimeCommand(command: RingSessionManager.CMD_START_REAL_TIME, type: type, action: .continue)
+    }
+
+    func stopRealTimeStreaming(type: RealTimeReading) {
+        sendRealTimeCommand(command: RingSessionManager.CMD_STOP_REAL_TIME, type: type, action: nil)
+    }
+
+    private func sendRealTimeCommand(command: UInt8, type: RealTimeReading, action: Action?) {
+        guard let uartRxCharacteristic, let peripheral else {
+            print("Cannot send real-time command. Peripheral or characteristic not ready.")
+            return
+        }
+
+        var packetData: [UInt8] = [type.rawValue]
+        if let action {
+            packetData.append(action.rawValue)
+        } else {
+            packetData.append(contentsOf: [0, 0])
+        }
+
+        do {
+            let packet = try makePacket(command: command, subData: packetData)
+            let data = Data(packet)
+            peripheral.writeValue(data, for: uartRxCharacteristic, type: .withResponse)
+        } catch {
+            print("Failed to create packet: \(error)")
+        }
+    }
+}
+
+// MARK: - Battery Status
+
+extension RingSessionManager {
+    func getBatteryStatus(completion: @escaping (BatteryInfo) -> Void) {
+        guard let uartRxCharacteristic, let peripheral else {
+            print("Cannot send battery request. Peripheral or characteristic not ready.")
+            return
+        }
+
+        do {
+            let packet = try makePacket(command: RingSessionManager.CMD_BATTERY)
+            let data = Data(packet)
+            peripheral.writeValue(data, for: uartRxCharacteristic, type: .withResponse)
+            batteryStatusCallback = completion
+        } catch {
+            print("Failed to create battery packet: \(error)")
+        }
+    }
+
+    private func handleBatteryResponse(packet: [UInt8]) {
+        guard packet[0] == RingSessionManager.CMD_BATTERY else {
+            print("Invalid battery packet received.")
+            return
+        }
+
+        let batteryLevel = Int(packet[1])
+        let charging = packet[2] != 0
+        let batteryInfo = BatteryInfo(batteryLevel: batteryLevel, charging: charging)
+        print(batteryInfo)
+
+        // Trigger stored callback with battery info
+        batteryStatusCallback?(batteryInfo)
+        batteryStatusCallback = nil
     }
 }
