@@ -5,51 +5,90 @@
 //  Created by Cyril Zakka on 10/21/24.
 //
 
-import Foundation
 import AccessorySetupKit
 import CoreBluetooth
+import Foundation
 import SwiftUI
 
 @Observable
 class RingSessionManager: NSObject {
     var peripheralConnected = false
     var pickerDismissed = true
-    
+
     var currentRing: ASAccessory?
     private var session = ASAccessorySession()
     private var manager: CBCentralManager?
     private var peripheral: CBPeripheral?
-    
+
     private var uartRxCharacteristic: CBCharacteristic?
     private var uartTxCharacteristic: CBCharacteristic?
-    
+
+    // Breathing detection
+    private var breathingEngine: BreathingAudioEngine?
+    var currentBreathingRate: Float = 0.0
+    var currentBreathingState: BreathingState = .none
+    var breathingSession: BreathingSession?
+
     private static let ringServiceUUID = "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
     private static let uartRxCharacteristicUUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     private static let uartTxCharacteristicUUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-    
+
     private static let deviceInfoServiceUUID = "0000180A-0000-1000-8000-00805F9B34FB"
     private static let deviceHardwareUUID = "00002A27-0000-1000-8000-00805F9B34FB"
     private static let deviceFirmwareUUID = "00002A26-0000-1000-8000-00805F9B34FB"
-    
+
     private static let ring: ASPickerDisplayItem = {
         let descriptor = ASDiscoveryDescriptor()
         descriptor.bluetoothServiceUUID = CBUUID(string: ringServiceUUID)
-        
+
         return ASPickerDisplayItem(
             name: "COLMI R02 Ring",
             productImage: UIImage(named: "colmi")!,
             descriptor: descriptor
         )
     }()
-    
+
     private var characteristicsDiscovered = false
-    
+
     override init() {
         super.init()
-        self.session.activate(on: DispatchQueue.main, eventHandler: handleSessionEvent(event:))
+        session.activate(on: DispatchQueue.main, eventHandler: handleSessionEvent(event:))
+        setupBreathingEngine()
     }
-    
+
+    private func setupBreathingEngine() {
+        breathingEngine = BreathingAudioEngine()
+
+        breathingEngine?.onBreathingRateUpdate = { [weak self] rate in
+            DispatchQueue.main.async {
+                self?.currentBreathingRate = rate
+
+                // Store measurement
+                let measurement = BreathingRateMeasurement(
+                    timestamp: Date(),
+                    instantaneousRate: rate,
+                    smoothedRate: rate,
+                    confidence: 0.8
+                )
+                BreathingDataStore.shared.updateCurrentSession(with: measurement)
+            }
+        }
+
+        breathingEngine?.onBreathingStateUpdate = { [weak self] state in
+            DispatchQueue.main.async {
+                self?.currentBreathingState = state
+            }
+        }
+
+        breathingEngine?.onBreathingEvent = { [weak self] event in
+            DispatchQueue.main.async {
+                BreathingDataStore.shared.addEventToCurrentSession(event)
+            }
+        }
+    }
+
     // MARK: - RingSessionManager actions
+
     func presentPicker() {
         session.showPicker(for: [Self.ring]) { error in
             if let error {
@@ -57,20 +96,22 @@ class RingSessionManager: NSObject {
             }
         }
     }
-    
+
     func removeRing() {
-        guard let currentRing else { return }
-        
+        guard let currentRing else {
+            return
+        }
+
         if peripheralConnected {
             disconnect()
         }
-        
+
         session.removeAccessory(currentRing) { _ in
             self.currentRing = nil
             self.manager = nil
         }
     }
-    
+
     func connect() {
         guard
             let manager, manager.state == .poweredOn,
@@ -81,36 +122,43 @@ class RingSessionManager: NSObject {
         let options: [String: Any] = [
             CBConnectPeripheralOptionNotifyOnConnectionKey: true,
             CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
-            CBConnectPeripheralOptionStartDelayKey: 1
+            CBConnectPeripheralOptionStartDelayKey: 1,
         ]
         manager.connect(peripheral, options: options)
     }
-    
+
     func disconnect() {
-        guard let peripheral, let manager else { return }
+        guard let peripheral, let manager else {
+            return
+        }
         manager.cancelPeripheralConnection(peripheral)
     }
-    
+
     // MARK: - ASAccessorySession functions
+
     private func saveRing(ring: ASAccessory) {
         currentRing = ring
-        
+
         if manager == nil {
             manager = CBCentralManager(delegate: self, queue: nil)
         }
     }
-    
+
     private func handleSessionEvent(event: ASAccessoryEvent) {
         switch event.eventType {
         case .accessoryAdded, .accessoryChanged:
-            guard let ring = event.accessory else { return }
+            guard let ring = event.accessory else {
+                return
+            }
             saveRing(ring: ring)
         case .activated:
-            guard let ring = session.accessories.first else { return }
+            guard let ring = session.accessories.first else {
+                return
+            }
             saveRing(ring: ring)
         case .accessoryRemoved:
-            self.currentRing = nil
-            self.manager = nil
+            currentRing = nil
+            manager = nil
         case .pickerDidPresent:
             pickerDismissed = false
         case .pickerDidDismiss:
@@ -142,22 +190,45 @@ extension RingSessionManager: CBCentralManagerDelegate {
             peripheral = nil
         }
     }
-    
+
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("DEBUG: Connected to peripheral: \(peripheral)")
         peripheral.delegate = self
         print("DEBUG: Discovering services...")
         peripheral.discoverServices([CBUUID(string: Self.ringServiceUUID)])
-        
+
         peripheralConnected = true
+
+        // Start breathing detection
+        startBreathingDetection()
     }
-    
+
+    private func startBreathingDetection() {
+        do {
+            breathingSession = BreathingDataStore.shared.startNewSession()
+            try breathingEngine?.start()
+            print("Started breathing detection")
+        } catch {
+            print("Failed to start breathing detection: \(error)")
+        }
+    }
+
+    private func stopBreathingDetection() {
+        breathingEngine?.stop()
+        BreathingDataStore.shared.endCurrentSession()
+        breathingSession = nil
+        print("Stopped breathing detection")
+    }
+
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: (any Error)?) {
         print("Disconnected from peripheral: \(peripheral)")
         peripheralConnected = false
         characteristicsDiscovered = false
+
+        // Stop breathing detection
+        stopBreathingDetection()
     }
-    
+
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: (any Error)?) {
         print("Failed to connect to peripheral: \(peripheral), error: \(error.debugDescription)")
     }
@@ -172,35 +243,35 @@ extension RingSessionManager: CBPeripheralDelegate {
             print("DEBUG: No services found or error occurred")
             return
         }
-        
+
         print("DEBUG: Found \(services.count) services")
         for service in services {
             if service.uuid == CBUUID(string: Self.ringServiceUUID) {
                 print("DEBUG: Found ring service, discovering characteristics...")
                 peripheral.discoverCharacteristics([
                     CBUUID(string: Self.uartRxCharacteristicUUID),
-                    CBUUID(string: Self.uartTxCharacteristicUUID)
+                    CBUUID(string: Self.uartTxCharacteristicUUID),
                 ], for: service)
             }
         }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         print("DEBUG: Characteristics discovery callback, error: \(String(describing: error))")
         guard error == nil, let characteristics = service.characteristics else {
             print("DEBUG: No characteristics found or error occurred")
             return
         }
-        
+
         print("DEBUG: Found \(characteristics.count) characteristics")
         for characteristic in characteristics {
             switch characteristic.uuid {
             case CBUUID(string: Self.uartRxCharacteristicUUID):
                 print("DEBUG: Found UART RX characteristic")
-                self.uartRxCharacteristic = characteristic
+                uartRxCharacteristic = characteristic
             case CBUUID(string: Self.uartTxCharacteristicUUID):
                 print("DEBUG: Found UART TX characteristic")
-                self.uartTxCharacteristic = characteristic
+                uartTxCharacteristic = characteristic
                 peripheral.setNotifyValue(true, for: characteristic)
             default:
                 print("DEBUG: Found other characteristic: \(characteristic.uuid)")
@@ -208,19 +279,21 @@ extension RingSessionManager: CBPeripheralDelegate {
         }
         characteristicsDiscovered = true
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if characteristic.uuid == CBUUID(string: Self.uartTxCharacteristicUUID) {
-            guard let value = characteristic.value else { return }
+            guard let value = characteristic.value else {
+                return
+            }
             switch value[0] {
             default:
                 print("Unknown sensor subtype: \(value[1])")
             }
         }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
+        if let error {
             print("Write to characteristic failed: \(error.localizedDescription)")
         } else {
             print("Write to characteristic successful")
