@@ -42,7 +42,6 @@ struct HeartRateView: View {
                         } else {
                             ringSessionManager.startRealTimeStreaming(type: .heartRate)
                         }
-
                     }, label: {
                         Group {
                             if isStreamingHR {
