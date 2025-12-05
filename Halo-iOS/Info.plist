@@ -11,8 +11,10 @@
 	<array>
 		<string>Bluetooth</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Halo needs Bluetooth to connect to your COLMI R02 ring for health monitoring.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Halo uses the microphone to detect breathing patterns during sleep for health monitoring.</string>
+	<string>Halo uses the microphone to detect breathing patterns during sleep.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

@@ -75,7 +75,7 @@ final class BreathingDSP {
 
         // Normalize with epsilon to avoid division by zero
         let epsilon: Float = 1e-6
-        let gain = 1.0 / max(rms, epsilon)
+        var gain = 1.0 / max(rms, epsilon)
 
         var normalized = [Float](repeating: 0.0, count: signal.count)
         vDSP_vsmul(signal, 1, &gain, &normalized, 1, vDSP_Length(signal.count))
@@ -176,7 +176,7 @@ final class IIRFilter {
 
         for i in 0 ..< signal.count {
             let x = Double(signal[i])
-            var y = b[0] * x + state[0]
+            let y = b[0] * x + state[0]
 
             for j in 1 ..< b.count {
                 state[j - 1] = b[j] * x - a[j] * y + state[j]

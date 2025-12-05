@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		BF62AEAE2EE36B5500DFFEBF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F1F52F852CC6F6A900A66115 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F1F52F8C2CC6F6A900A66115;
+			remoteInfo = "Halo-iOS";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		BF62AEAA2EE36B5500DFFEBF /* Halo-iOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Halo-iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1F52F8D2CC6F6A900A66115 /* Halo-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Halo-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -21,6 +32,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		BF62AEAB2EE36B5500DFFEBF /* Halo-iOSTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Halo-iOSTests";
+			sourceTree = "<group>";
+		};
 		F1F52F8F2CC6F6A900A66115 /* Halo-iOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -32,6 +48,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		BF62AEA72EE36B5500DFFEBF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1F52F8A2CC6F6A900A66115 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				F1F52F8F2CC6F6A900A66115 /* Halo-iOS */,
+				BF62AEAB2EE36B5500DFFEBF /* Halo-iOSTests */,
 				F1F52F8E2CC6F6A900A66115 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				F1F52F8D2CC6F6A900A66115 /* Halo-iOS.app */,
+				BF62AEAA2EE36B5500DFFEBF /* Halo-iOSTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,6 +86,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		BF62AEA92EE36B5500DFFEBF /* Halo-iOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF62AEB02EE36B5500DFFEBF /* Build configuration list for PBXNativeTarget "Halo-iOSTests" */;
+			buildPhases = (
+				BF62AEA62EE36B5500DFFEBF /* Sources */,
+				BF62AEA72EE36B5500DFFEBF /* Frameworks */,
+				BF62AEA82EE36B5500DFFEBF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BF62AEAF2EE36B5500DFFEBF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BF62AEAB2EE36B5500DFFEBF /* Halo-iOSTests */,
+			);
+			name = "Halo-iOSTests";
+			packageProductDependencies = (
+			);
+			productName = "Halo-iOSTests";
+			productReference = BF62AEAA2EE36B5500DFFEBF /* Halo-iOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		F1F52F8C2CC6F6A900A66115 /* Halo-iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F1F52F9B2CC6F6AA00A66115 /* Build configuration list for PBXNativeTarget "Halo-iOS" */;
@@ -90,9 +138,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1600;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					BF62AEA92EE36B5500DFFEBF = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = F1F52F8C2CC6F6A900A66115;
+					};
 					F1F52F8C2CC6F6A900A66115 = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -113,11 +165,19 @@
 			projectRoot = "";
 			targets = (
 				F1F52F8C2CC6F6A900A66115 /* Halo-iOS */,
+				BF62AEA92EE36B5500DFFEBF /* Halo-iOSTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BF62AEA82EE36B5500DFFEBF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1F52F8B2CC6F6A900A66115 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -128,6 +188,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BF62AEA62EE36B5500DFFEBF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1F52F892CC6F6A900A66115 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,7 +204,59 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		BF62AEAF2EE36B5500DFFEBF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F1F52F8C2CC6F6A900A66115 /* Halo-iOS */;
+			targetProxy = BF62AEAE2EE36B5500DFFEBF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		BF62AEB12EE36B5500DFFEBF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4AHUZV824A;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "vlordier.Halo-iOSTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Halo-iOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Halo-iOS";
+			};
+			name = Debug;
+		};
+		BF62AEB22EE36B5500DFFEBF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4AHUZV824A;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "vlordier.Halo-iOSTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Halo-iOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Halo-iOS";
+			};
+			name = Release;
+		};
 		F1F52F992CC6F6AA00A66115 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -196,6 +315,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -252,6 +372,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -262,13 +383,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Halo-iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = AG2QJ56KLX;
+				DEVELOPMENT_TEAM = 4AHUZV824A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Halo-iOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Halo uses the microphone to detect breathing patterns during sleep for health monitoring.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -279,8 +403,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "cyrilzakka.Halo-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "vlordier.DreamShaper-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -292,13 +417,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Halo-iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = AG2QJ56KLX;
+				DEVELOPMENT_TEAM = 4AHUZV824A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Halo-iOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Halo uses the microphone to detect breathing patterns during sleep for health monitoring.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -309,8 +437,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "cyrilzakka.Halo-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "vlordier.DreamShaper-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -320,6 +449,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		BF62AEB02EE36B5500DFFEBF /* Build configuration list for PBXNativeTarget "Halo-iOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF62AEB12EE36B5500DFFEBF /* Debug */,
+				BF62AEB22EE36B5500DFFEBF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F1F52F882CC6F6A900A66115 /* Build configuration list for PBXProject "Halo-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

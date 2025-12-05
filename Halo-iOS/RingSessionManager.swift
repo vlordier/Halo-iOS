@@ -53,7 +53,7 @@ class RingSessionManager: NSObject {
 
     private static let ring: ASPickerDisplayItem = {
         let descriptor = ASDiscoveryDescriptor()
-        descriptor.bluetoothCompanyIdentifier = ASBluetoothCompanyIdentifier(4_660)
+        descriptor.bluetoothServiceUUID = CBUUID(string: ringServiceUUID)
 
         return ASPickerDisplayItem(
             name: "COLMI R02 Ring",
@@ -92,7 +92,7 @@ class RingSessionManager: NSObject {
             }
         }
 
-        breathingEngine?.onBreathingEvent = { [weak self] event in
+        breathingEngine?.onBreathingEvent = { event in
             DispatchQueue.main.async {
                 BreathingDataStore.shared.addEventToCurrentSession(event)
             }
@@ -104,7 +104,7 @@ class RingSessionManager: NSObject {
     func presentPicker() {
         session.showPicker(for: [Self.ring]) { error in
             if let error {
-                print("Failed to show picker due to: \(error.localizedDescription)")
+                print("Failed to show picker: \(error.localizedDescription)")
             }
         }
     }

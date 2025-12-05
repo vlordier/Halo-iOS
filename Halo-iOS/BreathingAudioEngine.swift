@@ -94,7 +94,7 @@ final class BreathingAudioEngine {
         try session.setCategory(
             .record,
             mode: .measurement,
-            options: [.allowBluetooth, .mixWithOthers]
+            options: [.allowBluetoothHFP, .mixWithOthers]
         )
         try session.setPreferredSampleRate(16_000)
         try session.setPreferredIOBufferDuration(0.02) // ~20 ms
