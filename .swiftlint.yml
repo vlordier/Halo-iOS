@@ -3,13 +3,13 @@
 
 # Paths
 included:
-  - Chapter 1/Halo-iOS
+  - Halo-iOS
 
 excluded:
   - Pods
   - .build
   - DerivedData
-  - Chapter 1/Halo-iOS/Preview Content
+  - Halo-iOS/Preview Content
 
 # Rules
 opt_in_rules:

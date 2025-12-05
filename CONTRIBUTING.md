@@ -21,7 +21,7 @@ Thank you for your interest in contributing to Halo iOS! This document provides 
    ```bash
    git clone https://github.com/yourusername/Halo-iOS.git
    cd Halo-iOS
-   open "Chapter 1/Halo-iOS.xcodeproj"
+   open Halo-iOS.xcodeproj
    ```
 
 ## Coding Standards
@@ -99,7 +99,7 @@ swiftlint --fix
    swiftlint
    
    # Run tests
-   xcodebuild test -project "Chapter 1/Halo-iOS.xcodeproj" \
+   xcodebuild test -project Halo-iOS.xcodeproj \
                     -scheme Halo-iOS \
                     -destination 'platform=iOS Simulator,name=iPhone 16'
    ```
@@ -134,16 +134,15 @@ swiftlint --fix
 
 ```
 Halo-iOS/
-├── Chapter 1/
-│   ├── Halo-iOS/              # Main app code
-│   │   ├── *AudioEngine.swift # Audio processing
-│   │   ├── *DSP.swift         # Signal processing
-│   │   ├── *Classifier.swift  # ML/Classification
-│   │   ├── *DataStore.swift   # Persistence
-│   │   ├── ContentView.swift  # UI
-│   │   └── Info.plist         # Configuration
-│   ├── Halo-iOSTests/         # Unit tests
-│   └── Halo-iOS.xcodeproj/    # Xcode project
+├── Halo-iOS/                  # Main app code
+│   ├── *AudioEngine.swift     # Audio processing
+│   ├── *DSP.swift             # Signal processing
+│   ├── *Classifier.swift      # ML/Classification
+│   ├── *DataStore.swift       # Persistence
+│   ├── ContentView.swift      # UI
+│   └── Info.plist             # Configuration
+├── Halo-iOSTests/             # Unit tests (future)
+├── Halo-iOS.xcodeproj/        # Xcode project
 ├── .swiftformat               # Format config
 ├── .swiftlint.yml             # Lint config
 ├── .gitignore                 # Git ignores
@@ -180,7 +179,7 @@ final class BreathingDSPTests: XCTestCase {
 
 Run with coverage:
 ```bash
-xcodebuild test -project "Chapter 1/Halo-iOS.xcodeproj" \
+xcodebuild test -project Halo-iOS.xcodeproj \
                 -scheme Halo-iOS \
                 -destination 'platform=iOS Simulator,name=iPhone 16' \
                 -enableCodeCoverage YES

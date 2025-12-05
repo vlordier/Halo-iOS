@@ -78,7 +78,7 @@ Halo-iOS/
 
 2. **Open in Xcode:**
    ```bash
-   open "Chapter 1/Halo-iOS.xcodeproj"
+   open Halo-iOS.xcodeproj
    ```
 
 3. **Install dependencies (if using):**
@@ -113,20 +113,22 @@ swiftlint
 
 ```bash
 # Run tests
-xcodebuild test -project "Chapter 1/Halo-iOS.xcodeproj" \
+xcodebuild test -project Halo-iOS.xcodeproj \
                 -scheme Halo-iOS \
                 -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
 ### Project Structure
 
-- `Halo-iOS/` - Main application code
-  - `*AudioEngine.swift` - Audio processing
-  - `*DSP.swift` - Digital signal processing
-  - `*Classifier.swift` - Pattern classification
-  - `*DataStore.swift` - Persistence layer
-  - `ContentView.swift` - Main UI
-  - `RingSessionManager.swift` - Device coordination
+```
+Halo-iOS/               # Main application code
+├── *AudioEngine.swift  # Audio processing
+├── *DSP.swift          # Digital signal processing
+├── *Classifier.swift   # Pattern classification
+├── *DataStore.swift    # Persistence layer
+├── ContentView.swift   # Main UI
+└── RingSessionManager.swift  # Device coordination
+```
 
 ## Privacy & Security
 
