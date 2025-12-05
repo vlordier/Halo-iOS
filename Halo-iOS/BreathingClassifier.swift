@@ -26,8 +26,8 @@ final class BreathingClassifier {
     /// Classify breathing state from features and envelope
     /// Currently uses rule-based approach based on envelope slope
     func classify(features: [[Float]], envelope: [Float]) -> BreathingState {
-        guard !envelope.isEmpty else {
-            return .none
+        guard envelope.count > 5 else {
+            return previousState // Return previous instead of none
         }
 
         // Rule-based classification using envelope slope
@@ -42,34 +42,28 @@ final class BreathingClassifier {
     // MARK: - Private Methods
 
     private func classifyFromEnvelope(_ envelope: [Float]) -> BreathingState {
-        guard envelope.count > 10 else {
-            return .none
-        }
-
-        // Compute derivative (slope) of envelope
+        // Use first half vs second half comparison
         let mid = envelope.count / 2
-        let windowSize = min(10, envelope.count / 4)
+        guard mid > 0 else { return previousState }
 
-        let startIdx = max(0, mid - windowSize)
-        let endIdx = min(envelope.count, mid + windowSize)
+        let firstHalf = Array(envelope[0..<mid])
+        let secondHalf = Array(envelope[mid...])
 
-        guard endIdx > startIdx else {
-            return .none
-        }
+        let firstAvg = firstHalf.reduce(0, +) / Float(firstHalf.count)
+        let secondAvg = secondHalf.reduce(0, +) / Float(secondHalf.count)
 
-        let startValue = envelope[startIdx]
-        let endValue = envelope[endIdx]
-        let slope = (endValue - startValue) / Float(endIdx - startIdx)
+        let change = secondAvg - firstAvg
+        let avgValue = (firstAvg + secondAvg) / 2
 
-        // Classify based on slope
-        let threshold: Float = 0.001
+        // Use relative threshold based on average value
+        let threshold = avgValue * 0.05 // 5% change threshold
 
-        if slope > threshold {
-            return .inhale // Rising slope = inhaling
-        } else if slope < -threshold {
-            return .exhale // Falling slope = exhaling
+        if change > threshold {
+            return .inhale // Signal increasing = inhaling
+        } else if change < -threshold {
+            return .exhale // Signal decreasing = exhaling
         } else {
-            return .none // Flat = no clear breathing
+            return previousState // Keep previous state if no clear change
         }
     }
 

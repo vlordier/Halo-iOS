@@ -63,11 +63,25 @@ final class BreathingAudioEngine {
             return
         }
 
-        try configureAudioSession()
-        try startAudioEngine()
+        // Request microphone permission first
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
+            guard granted else {
+                print("❌ Microphone permission denied!")
+                return
+            }
+            print("✅ Microphone permission granted")
 
-        isRunning = true
-        print("BreathingAudioEngine started")
+            DispatchQueue.main.async {
+                do {
+                    try self?.configureAudioSession()
+                    try self?.startAudioEngine()
+                    self?.isRunning = true
+                    print("🎤 BreathingAudioEngine started successfully")
+                } catch {
+                    print("❌ Failed to start audio engine: \(error)")
+                }
+            }
+        }
     }
 
     func stop() {
@@ -159,6 +173,8 @@ final class BreathingAudioEngine {
         runBreathingPipeline(samples: channelData, count: frameCount)
     }
 
+    private var frameCount = 0
+
     private func runBreathingPipeline(samples: UnsafePointer<Float>, count: Int) {
         // Convert to array for processing
         let audioData = Array(UnsafeBufferPointer(start: samples, count: count))
@@ -172,13 +188,26 @@ final class BreathingAudioEngine {
         // Step 3: Compute envelope
         let envelope = dspProcessor.computeEnvelope(normalized)
 
+        // Debug: Log audio levels periodically
+        frameCount += 1
+        if frameCount % 50 == 0 {
+            let maxEnvelope = envelope.max() ?? 0
+            let avgEnvelope = envelope.reduce(0, +) / Float(max(envelope.count, 1))
+            print("🎤 Audio level - max: \(String(format: "%.4f", maxEnvelope)), avg: \(String(format: "%.4f", avgEnvelope))")
+        }
+
         // Step 4: Detect breathing activity
         let isBreathingActive = dspProcessor.detectBreathingActivity(envelope: envelope)
 
         guard isBreathingActive else {
-            onBreathingStateUpdate?(.none)
+            // Only update to none occasionally to reduce UI updates
+            if frameCount % 10 == 0 {
+                onBreathingStateUpdate?(.none)
+            }
             return
         }
+
+        print("🫁 Breathing activity detected!")
 
         // Step 5: Extract features for classification
         featureExtractor.addSamples(normalized)
@@ -186,6 +215,7 @@ final class BreathingAudioEngine {
         if let features = featureExtractor.extractFeatures() {
             // Step 6: Classify breathing state (inhale/exhale/none)
             let state = classifier.classify(features: features, envelope: envelope)
+            print("🫁 Classified state: \(state)")
             onBreathingStateUpdate?(state)
 
             // Step 7: Track breathing rate

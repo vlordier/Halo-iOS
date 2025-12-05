@@ -30,6 +30,12 @@ class RingSessionManager: NSObject {
     var currentBreathingState: BreathingState = .none
     var breathingSession: BreathingSession?
 
+    // Ring health metrics
+    var currentHeartRate: Int = 0
+    var isStreamingHeartRate = false
+    var batteryLevel: Int = 0
+    var isBatteryCharging = false
+
     // Service UUIDs
     private static let mainServiceUUID = "DE5BF728-D711-4E47-AF26-65E3012A5DC7"
     private static let mainWriteCharacteristicUUID = "DE5BF72A-D711-4E47-AF26-65E3012A5DC7"
@@ -208,21 +214,48 @@ class RingSessionManager: NSObject {
 
 extension RingSessionManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        print("Central manager state: \(central.state)")
+        print("🔵 Central manager state: \(central.state.rawValue)")
         switch central.state {
         case .poweredOn:
+            print("🔵 Bluetooth is powered on")
             if let peripheralUUID = currentRing?.bluetoothIdentifier {
+                print("🔵 Looking for ring with UUID: \(peripheralUUID)")
                 if let knownPeripheral = central.retrievePeripherals(withIdentifiers: [peripheralUUID]).first {
-                    print("Found previously connected peripheral")
+                    print("✅ Found previously connected peripheral: \(knownPeripheral.name ?? "Unknown")")
                     peripheral = knownPeripheral
                     peripheral?.delegate = self
                     connect()
                 } else {
-                    print("Known peripheral not found, starting scan")
+                    print("⚠️ Peripheral not found in cache, trying to scan...")
+                    // Start scanning for the ring
+                    central.scanForPeripherals(
+                        withServices: [CBUUID(string: Self.ringServiceUUID)],
+                        options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+                    )
                 }
+            } else {
+                print("⚠️ No current ring set, waiting for picker selection")
             }
-        default:
+        case .poweredOff:
+            print("❌ Bluetooth is powered off")
             peripheral = nil
+        case .unauthorized:
+            print("❌ Bluetooth unauthorized - check permissions")
+            peripheral = nil
+        default:
+            print("⚠️ Bluetooth state: \(central.state.rawValue)")
+            peripheral = nil
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        print("🔍 Discovered peripheral: \(peripheral.name ?? "Unknown") RSSI: \(RSSI)")
+        if peripheral.identifier == currentRing?.bluetoothIdentifier {
+            print("✅ Found our ring! Connecting...")
+            central.stopScan()
+            self.peripheral = peripheral
+            peripheral.delegate = self
+            connect()
         }
     }
 
@@ -332,6 +365,7 @@ extension RingSessionManager: CBPeripheralDelegate {
         }
 
         let packet = [UInt8](value)
+        print("📦 Received packet: \(packet)")
 
         switch packet[0] {
         case RingSessionManager.CMD_BATTERY:
@@ -341,19 +375,18 @@ extension RingSessionManager: CBPeripheralDelegate {
             let errorCode = packet[2]
 
             if errorCode == 0 {
-                let readingValue = packet[3]
-                print("Real-Time Reading - Type: \(readingType), Value: \(readingValue)")
+                let readingValue = Int(packet[3])
+                print("❤️ Real-Time Reading - Type: \(readingType), Value: \(readingValue)")
+                DispatchQueue.main.async {
+                    if readingType == .heartRate {
+                        self.currentHeartRate = readingValue
+                    }
+                }
             } else {
-                print("Error in reading - Type: \(readingType), Error Code: \(errorCode)")
+                print("❌ Error in reading - Type: \(readingType), Error Code: \(errorCode)")
             }
         default:
             break
-        }
-
-        if characteristic.uuid == CBUUID(string: Self.uartTxCharacteristicUUID) {
-            if let value = characteristic.value {
-                print("Received value: \(value) : \([UInt8](value))")
-            }
         }
     }
 

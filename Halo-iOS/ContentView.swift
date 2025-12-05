@@ -41,6 +41,77 @@ struct ContentView: View {
                 }
             }
 
+            // Ring health metrics (only when connected)
+            if ringSessionManager.peripheralConnected {
+                Section("RING HEALTH") {
+                    // Heart Rate
+                    HStack {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(.pink)
+                            .font(.title2)
+
+                        VStack(alignment: .leading) {
+                            Text("Heart Rate")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("\(ringSessionManager.currentHeartRate)")
+                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                Text("BPM")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button {
+                            if ringSessionManager.isStreamingHeartRate {
+                                ringSessionManager.stopRealTimeStreaming(type: .heartRate)
+                                ringSessionManager.isStreamingHeartRate = false
+                            } else {
+                                ringSessionManager.startRealTimeStreaming(type: .heartRate)
+                                ringSessionManager.isStreamingHeartRate = true
+                            }
+                        } label: {
+                            Text(ringSessionManager.isStreamingHeartRate ? "Stop" : "Measure")
+                                .font(.subheadline.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(ringSessionManager.isStreamingHeartRate ? Color.red : Color.pink)
+                                .foregroundStyle(.white)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    // Battery
+                    HStack {
+                        BatteryView(isCharging: ringSessionManager.isBatteryCharging, batteryLevel: ringSessionManager.batteryLevel)
+                            .font(.title2)
+
+                        VStack(alignment: .leading) {
+                            Text("Battery")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(ringSessionManager.batteryLevel)%")
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        }
+
+                        Spacer()
+
+                        Button("Refresh") {
+                            ringSessionManager.getBatteryStatus { info in
+                                ringSessionManager.batteryLevel = info.batteryLevel
+                                ringSessionManager.isBatteryCharging = info.charging
+                            }
+                        }
+                        .font(.subheadline)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
             // Demo mode section (for testing without ring)
             Section("DEMO MODE") {
                 Toggle("Breathing Demo", isOn: $isBreathingDemoActive)

@@ -120,18 +120,10 @@ final class BreathingDSP {
             envelopeHistory.removeFirst(envelopeHistory.count - envelopeHistorySize)
         }
 
-        // Not enough history yet
-        guard envelopeHistory.count > 10 else {
-            return false
-        }
-
-        // Compute median of historical envelope values
-        let sortedHistory = envelopeHistory.sorted()
-        let median = sortedHistory[sortedHistory.count / 2]
-
-        // Check if current envelope exceeds threshold
-        let threshold = median * activityThresholdMultiplier
-        return currentMean > threshold
+        // Simple threshold: any meaningful audio is considered activity
+        // The classifier will determine actual breathing vs noise
+        let minActivityThreshold: Float = 0.1
+        return currentMean > minActivityThreshold
     }
 }
 
