@@ -58,42 +58,94 @@ struct ContentView: View {
 
     @ViewBuilder
     private func makeBreathingMonitorView() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Breathing Rate")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        VStack(spacing: 16) {
+            // Animated breathing circle
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+                    .frame(width: 120, height: 120)
 
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(String(format: "%.1f", ringSessionManager.currentBreathingRate))
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                        Text("BPM")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                // Animated breathing indicator
+                Circle()
+                    .fill(breathingStateGradient)
+                    .frame(width: breathingCircleSize, height: breathingCircleSize)
+                    .animation(.easeInOut(duration: 0.8), value: ringSessionManager.currentBreathingState)
+                    .shadow(color: breathingStateColor.opacity(0.5), radius: 10)
 
-                Spacer()
+                // Center icon
+                Image(systemName: breathingStateIcon)
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(.white)
+                    .scaleEffect(ringSessionManager.currentBreathingState == .none ? 1.0 : 1.2)
+                    .animation(.easeInOut(duration: 0.5), value: ringSessionManager.currentBreathingState)
+            }
 
-                // Breathing state indicator
-                VStack {
-                    Circle()
-                        .fill(breathingStateColor)
-                        .frame(width: 50, height: 50)
-                        .overlay {
-                            Image(systemName: breathingStateIcon)
-                                .font(.title2)
-                                .foregroundStyle(.white)
-                        }
+            // State label
+            Text(breathingStateLabel)
+                .font(.headline)
+                .foregroundStyle(breathingStateColor)
 
-                    Text(ringSessionManager.currentBreathingState.rawValue.capitalized)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            // Audio level bars
+            HStack(spacing: 3) {
+                ForEach(0..<7, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(audioBarColor(for: index))
+                        .frame(width: 8, height: audioBarHeight(for: index))
+                        .animation(.easeOut(duration: 0.15), value: ringSessionManager.currentBreathingState)
                 }
             }
+            .frame(height: 40)
+
+            // Breathing rate
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(String(format: "%.0f", ringSessionManager.currentBreathingRate))
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(breathingStateColor)
+                Text("BPM")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var breathingCircleSize: CGFloat {
+        switch ringSessionManager.currentBreathingState {
+        case .inhale: 100
+        case .exhale: 60
+        case .none: 80
+        }
+    }
+
+    private var breathingStateGradient: LinearGradient {
+        LinearGradient(
+            colors: [breathingStateColor, breathingStateColor.opacity(0.7)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var breathingStateLabel: String {
+        switch ringSessionManager.currentBreathingState {
+        case .inhale: "Breathing In"
+        case .exhale: "Breathing Out"
+        case .none: "Waiting..."
+        }
+    }
+
+    private func audioBarColor(for index: Int) -> Color {
+        let isActive = ringSessionManager.currentBreathingState != .none
+        let activeIndex = ringSessionManager.currentBreathingState == .inhale ? 6 - index : index
+        let threshold = isActive ? (ringSessionManager.currentBreathingState == .inhale ? 4 : 3) : 0
+        return activeIndex < threshold ? breathingStateColor : Color.gray.opacity(0.3)
+    }
+
+    private func audioBarHeight(for index: Int) -> CGFloat {
+        let baseHeights: [CGFloat] = [12, 20, 28, 36, 28, 20, 12]
+        let isActive = ringSessionManager.currentBreathingState != .none
+        return isActive ? baseHeights[index] : baseHeights[index] * 0.5
     }
 
     @ViewBuilder
