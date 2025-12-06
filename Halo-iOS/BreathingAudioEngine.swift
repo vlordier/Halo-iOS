@@ -28,6 +28,7 @@ final class BreathingAudioEngine {
 
     // State
     private(set) var isRunning = false
+    private var simulationTimer: Timer?
 
     // Callbacks
     var onBreathingRateUpdate: ((Float) -> Void)?
@@ -96,6 +97,8 @@ final class BreathingAudioEngine {
 
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        simulationTimer?.invalidate() // Invalidate simulation timer if running
+        simulationTimer = nil
 
         do {
             try session.setActive(false, options: [])
@@ -105,6 +108,65 @@ final class BreathingAudioEngine {
 
         isRunning = false
         print("BreathingAudioEngine stopped")
+    }
+
+    // MARK: - Simulation
+
+    /// Simulates breathing using an audio file
+    func startSimulation(fileURL: URL) {
+        stop() // Stop any running engine
+        
+        guard let audioFile = try? AVAudioFile(forReading: fileURL) else {
+            print("❌ Simulation failed: Could not read file \(fileURL.lastPathComponent)")
+            return
+        }
+        
+        print("▶️ Starting simulation with: \(fileURL.lastPathComponent)")
+        isRunning = true
+        
+        // Convert to compatible format (16kHz Mono Float32)
+        let format = audioFile.processingFormat
+        let frameCount = AVAudioFrameCount(audioFile.length)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
+        try? audioFile.read(into: buffer)
+        
+        let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
+        let converter = AVAudioConverter(from: format, to: targetFormat)!
+        
+        let ratio = 16000.0 / format.sampleRate
+        let targetFrameCount = AVAudioFrameCount(Double(frameCount) * ratio)
+        let convertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: targetFrameCount)!
+        
+        var error: NSError? = nil
+        converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        
+        guard let channelData = convertedBuffer.floatChannelData else { return }
+        let totalSamples = Int(convertedBuffer.frameLength)
+        let samples = Array(UnsafeBufferPointer(start: channelData[0], count: totalSamples))
+        
+        var currentOffset = 0
+        let chunkSize = 512 // ~32ms at 16kHz
+        
+        simulationTimer = Timer.scheduledTimer(withTimeInterval: 0.032, repeats: true) { [weak self] timer in
+            guard let self = self else { timer.invalidate(); return }
+            
+            if currentOffset + chunkSize >= totalSamples {
+                currentOffset = 0 // Loop
+                print("🔄 Loop simulation")
+            }
+            
+            // Get chunk
+            let chunk = UnsafePointer(samples).advanced(by: currentOffset)
+            
+            self.processingQueue.async {
+                self.runBreathingPipeline(samples: chunk, count: chunkSize)
+            }
+            
+            currentOffset += chunkSize
+        }
     }
 
     // MARK: - Private Methods

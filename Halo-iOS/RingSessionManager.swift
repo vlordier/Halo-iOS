@@ -135,6 +135,16 @@ class RingSessionManager: NSObject {
         }
     }
 
+    func startBreathingSimulation(file: String) {
+        print("Starting simulation with \(file)...")
+        // Hardcoded path for the user's environment
+        let fullPath = "/Users/vincent/Work/Halo-iOS-1/Halo-iOS/TestAudio/" + file
+        let url = URL(fileURLWithPath: fullPath)
+        
+        breathingSession = BreathingDataStore.shared.startNewSession()
+        breathingEngine?.startSimulation(fileURL: url)
+    }
+
     func stopBreathingDemo() {
         print("Stopping breathing demo mode...")
         breathingEngine?.stop()

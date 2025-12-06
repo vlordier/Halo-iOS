@@ -11,6 +11,8 @@ import SwiftUI
 struct ContentView: View {
     @State var ringSessionManager = RingSessionManager()
     @State private var isBreathingDemoActive = false
+    @State private var isSimulationActive = false
+    @State private var selectedSimulationFile = "breathing_normal.mp3"
 
     var body: some View {
         List {
@@ -28,8 +30,8 @@ struct ContentView: View {
                 }
             })
 
-            // Show breathing section if connected OR demo mode
-            if ringSessionManager.peripheralConnected || isBreathingDemoActive {
+            // Show breathing section if connected OR demo mode OR simulation
+            if ringSessionManager.peripheralConnected || isBreathingDemoActive || isSimulationActive {
                 Section("BREATHING MONITORING", content: {
                     makeBreathingMonitorView()
                 })
@@ -126,6 +128,28 @@ struct ContentView: View {
                 Text("Test breathing UI without ring connection")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            
+            // Simulation section
+            Section("SIMULATION") {
+                Picker("Test File", selection: $selectedSimulationFile) {
+                    Text("Normal").tag("breathing_normal.mp3")
+                    Text("Heavy").tag("breathing_heavy.mp3")
+                    Text("Fast").tag("breathing_fast.mp3")
+                    Text("Slow").tag("breathing_slow.mp3")
+                    Text("Sickly").tag("breathing_sickly.mp3")
+                }
+                
+                Button(isSimulationActive ? "Stop Simulation" : "Start Simulation") {
+                    if isSimulationActive {
+                        ringSessionManager.stopBreathingDemo()
+                        isSimulationActive = false
+                    } else {
+                        ringSessionManager.startBreathingSimulation(file: selectedSimulationFile)
+                        isSimulationActive = true
+                    }
+                }
+                .foregroundStyle(isSimulationActive ? .red : .blue)
             }
         }.listStyle(.insetGrouped)
     }
