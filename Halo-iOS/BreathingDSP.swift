@@ -27,6 +27,15 @@ final class BreathingDSP {
     private var longTermRMS: Float = 0.001
     private var envelopePeak: Float = 0.005
     
+    // Adaptive Audio Frequency State
+    private var currentAudioCenterFreq: Float = 500.0 // Start at 500 Hz
+    private var audioBandwidth: Float = 800.0 // 800 Hz wide
+    private var smoothedZCR: Float = 0.03 // Initial estimate corresponding to ~500Hz
+    
+    // Limits
+    private let minAudioFreq: Float = 80.0
+    private let maxAudioFreq: Float = 4000.0
+    
     // Adaptive Tuning State
     private var currentCenterFreq: Float = 0.3 // Default start ~18 BPM
     private var currentBandwidth: Float = 0.7  // Wide start
@@ -40,10 +49,9 @@ final class BreathingDSP {
     }
 
     private func setupFilters() {
-        // 1. Audio Filtering (80Hz - 1000Hz)
-        // Using distinct filters avoids the resonance issues of simple BPFs
-        audioHighpass = IIRFilter(sampleRate: sampleRate, filterType: .highpass, frequency: 80.0)
-        audioLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 1000.0)
+        // 1. Audio Filtering (Initial: 100Hz - 900Hz)
+        audioHighpass = IIRFilter(sampleRate: sampleRate, filterType: .highpass, frequency: 100.0)
+        audioLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 900.0)
 
         // 2. Envelope Smoothing (4Hz)
         envelopeRectifierLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 4.0)
@@ -121,8 +129,59 @@ final class BreathingDSP {
         isTracking = false
     }
 
+    /// Adaptively tune the AUDIO filters based on the signal content (ZCR)
+    /// This locks onto the specific "hiss" frequency of the user's breath
+    private func adaptAudioFrequencies(signal: [Float]) {
+        guard !signal.isEmpty else { return }
+        
+        // 1. Calculate Zero Crossing Rate (Proxy for dominant frequency)
+        var zeroCrossings = 0
+        for i in 1..<signal.count {
+            if (signal[i-1] > 0 && signal[i] <= 0) || (signal[i-1] < 0 && signal[i] >= 0) {
+                zeroCrossings += 1
+            }
+        }
+        let zcr = Float(zeroCrossings) / Float(signal.count)
+        
+        // 2. Smooth ZCR (Slow moving average)
+        let alpha: Float = 0.05
+        smoothedZCR = (smoothedZCR * (1.0 - alpha)) + (zcr * alpha)
+        
+        // 3. Convert ZCR to roughly estimated Frequency
+        // F = (ZCR * SampleRate) / 2
+        let estimatedFreq = (smoothedZCR * Float(sampleRate)) / 2.0
+        
+        // 4. Update Target Center Frequency
+        // Only update if we have significant energy (don't adapt to silence)
+        // Check longTermRMS from normalizeAndAGC
+        if longTermRMS > 0.005 {
+             let freqAlpha: Float = 0.02
+             currentAudioCenterFreq = (currentAudioCenterFreq * (1.0 - freqAlpha)) + (estimatedFreq * freqAlpha)
+        }
+        
+        // 5. Calculate new Audio Filter Cutoffs
+        // We keep a fixed bandwidth but slide it up/down
+        let halfBW = audioBandwidth / 2.0
+        var newLow = max(minAudioFreq, currentAudioCenterFreq - halfBW)
+        var newHigh = min(maxAudioFreq, currentAudioCenterFreq + halfBW)
+        
+        // Safety check to maintain bandwidth
+        if newHigh - newLow < 200 {
+            newHigh = newLow + 200
+        }
+        
+        // 6. Update Filters
+        audioHighpass.updateParameters(filterType: .highpass, frequency: Double(newLow))
+        audioLowpass.updateParameters(filterType: .lowpass, frequency: Double(newHigh))
+        
+        // print("🎤 Audio Tuning: Center: \(Int(currentAudioCenterFreq)) Hz | Range: \(Int(newLow))-\(Int(newHigh)) Hz")
+    }
+
     /// Apply band-pass filter to isolate breath sounds (Airflow)
     func applyBandpassFilter(to signal: [Float]) -> [Float] {
+        // Run adaptation step on the raw signal first
+        adaptAudioFrequencies(signal: signal)
+        
         let hp = audioHighpass.process(signal)
         return audioLowpass.process(hp)
     }
