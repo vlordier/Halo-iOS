@@ -33,6 +33,7 @@ final class BreathingAudioEngine {
     var onBreathingRateUpdate: ((Float) -> Void)?
     var onBreathingStateUpdate: ((BreathingState) -> Void)?
     var onBreathingEvent: ((BreathingEvent) -> Void)?
+    var onAudioLevelUpdate: ((Float) -> Void)?
 
     // MARK: - Initialization
 
@@ -179,6 +180,11 @@ final class BreathingAudioEngine {
         // Convert to array for processing
         let audioData = Array(UnsafeBufferPointer(start: samples, count: count))
 
+        // Calculate raw audio level (before processing)
+        let rawMax = audioData.map { abs($0) }.max() ?? 0
+        let normalizedLevel = min(1.0, rawMax * 5) // Scale for visibility
+        onAudioLevelUpdate?(normalizedLevel)
+
         // Step 1: Band-pass filter (80-500 Hz)
         let filtered = dspProcessor.applyBandpassFilter(to: audioData)
 
@@ -190,10 +196,8 @@ final class BreathingAudioEngine {
 
         // Debug: Log audio levels periodically
         frameCount += 1
-        if frameCount % 50 == 0 {
-            let maxEnvelope = envelope.max() ?? 0
-            let avgEnvelope = envelope.reduce(0, +) / Float(max(envelope.count, 1))
-            print("🎤 Audio level - max: \(String(format: "%.4f", maxEnvelope)), avg: \(String(format: "%.4f", avgEnvelope))")
+        if frameCount % 100 == 0 {
+            print("🎤 Raw level: \(String(format: "%.3f", rawMax)), Envelope: \(String(format: "%.3f", envelope.max() ?? 0))")
         }
 
         // Step 4: Detect breathing activity

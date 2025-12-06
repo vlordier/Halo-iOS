@@ -29,6 +29,7 @@ class RingSessionManager: NSObject {
     var currentBreathingRate: Float = 0.0
     var currentBreathingState: BreathingState = .none
     var breathingSession: BreathingSession?
+    var currentAudioLevel: Float = 0.0  // 0.0 to 1.0
 
     // Ring health metrics
     var currentHeartRate: Int = 0
@@ -101,6 +102,12 @@ class RingSessionManager: NSObject {
         breathingEngine?.onBreathingEvent = { event in
             DispatchQueue.main.async {
                 BreathingDataStore.shared.addEventToCurrentSession(event)
+            }
+        }
+
+        breathingEngine?.onAudioLevelUpdate = { [weak self] level in
+            DispatchQueue.main.async {
+                self?.currentAudioLevel = level
             }
         }
     }

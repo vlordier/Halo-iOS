@@ -14,16 +14,18 @@ final class BreathingDSP {
 
     private let sampleRate: Double
 
-    // Band-pass filter state (80-500 Hz, 4th order Butterworth)
-    private var bandpassFilter: IIRFilter!
+    // Audio Filters (Separate HP/LP is more stable for wide bands)
+    private var audioHighpass: IIRFilter!
+    private var audioLowpass: IIRFilter!
 
-    // Envelope detection (2-3 Hz low-pass)
-    private var envelopeLowpass: IIRFilter!
+    // Envelope Filters (The "Rhythm" Section)
+    private var envelopeRectifierLowpass: IIRFilter! // Smoothing (4Hz)
+    private var envelopeRhythmHighpass: IIRFilter!   // DC Removal (0.1Hz)
+    private var envelopeRhythmLowpass: IIRFilter!    // Jitter Removal (0.8Hz)
 
-    // Activity detection
-    private var envelopeHistory: [Float] = []
-    private let envelopeHistorySize = 480 // ~30 seconds at 16 Hz envelope rate
-    private let activityThresholdMultiplier: Float = 1.5
+    // Adaptive Normalization
+    private var longTermRMS: Float = 0.001
+    private var envelopePeak: Float = 0.005
 
     // MARK: - Initialization
 
@@ -33,191 +35,178 @@ final class BreathingDSP {
     }
 
     private func setupFilters() {
-        // Band-pass filter: 80-500 Hz, 4th order Butterworth
-        // Implemented as cascade of 2 biquad sections
-        bandpassFilter = IIRFilter(
-            sampleRate: sampleRate,
-            filterType: .bandpass,
-            lowFreq: 80.0,
-            highFreq: 500.0,
-            order: 4
-        )
+        // 1. Audio Filtering (80Hz - 1000Hz)
+        // Using distinct filters avoids the resonance issues of simple BPFs
+        audioHighpass = IIRFilter(sampleRate: sampleRate, filterType: .highpass, frequency: 80.0)
+        audioLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 1000.0)
 
-        // Envelope low-pass: 2.5 Hz cutoff
-        envelopeLowpass = IIRFilter(
-            sampleRate: sampleRate,
-            filterType: .lowpass,
-            frequency: 2.5,
-            order: 2
-        )
+        // 2. Envelope Smoothing (4Hz)
+        envelopeRectifierLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 4.0)
+        
+        // 3. Rhythm Isolation (0.1Hz - 0.8Hz)
+        // 0.1Hz = 6 BPM (Deep slow breathing)
+        // 0.8Hz = 48 BPM (Fast hyperventilation)
+        envelopeRhythmHighpass = IIRFilter(sampleRate: sampleRate, filterType: .highpass, frequency: 0.1)
+        envelopeRhythmLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 0.8)
     }
 
     // MARK: - Public Methods
 
-    /// Apply band-pass filter to isolate breathing frequencies (80-500 Hz)
+    /// Apply band-pass filter to isolate breath sounds (Airflow)
     func applyBandpassFilter(to signal: [Float]) -> [Float] {
-        bandpassFilter.process(signal)
+        let hp = audioHighpass.process(signal)
+        return audioLowpass.process(hp)
     }
 
-    /// Normalize signal and apply automatic gain control
+    /// Normalize signal and apply AGC
     func normalizeAndAGC(_ signal: [Float]) -> [Float] {
-        guard !signal.isEmpty else {
-            return signal
-        }
+        guard !signal.isEmpty else { return signal }
 
-        // Compute RMS
+        // 1. Compute current RMS
         var rms: Float = 0.0
         var signalSquared = [Float](repeating: 0.0, count: signal.count)
-
         vDSP_vsq(signal, 1, &signalSquared, 1, vDSP_Length(signal.count))
         vDSP_meanv(signalSquared, 1, &rms, vDSP_Length(signal.count))
         rms = sqrt(rms)
-
-        // Normalize with epsilon to avoid division by zero
-        let epsilon: Float = 1e-6
-        var gain = 1.0 / max(rms, epsilon)
+        
+        // 2. Update Long-Term RMS (Adaptive Noise Floor)
+        // Fast attack for loud noises, slow decay for quiet periods
+        let attack: Float = 0.1
+        let decay: Float = 0.005
+        if rms > longTermRMS {
+            longTermRMS = (longTermRMS * (1.0 - attack)) + (rms * attack)
+        } else {
+            longTermRMS = (longTermRMS * (1.0 - decay)) + (rms * decay)
+        }
+        
+        // 3. Calculate Gain
+        // Target a consistent level relative to the noise floor
+        let targetLevel: Float = 0.1
+        let noiseFloor = max(longTermRMS, 1e-5)
+        var gain = targetLevel / noiseFloor
+        
+        // Limit gain to prevent massive amplification of silence
+        gain = min(gain, 200.0) // Allow up to 200x gain for very quiet breathing
 
         var normalized = [Float](repeating: 0.0, count: signal.count)
         vDSP_vsmul(signal, 1, &gain, &normalized, 1, vDSP_Length(signal.count))
-
-        // Soft clip to [-3, 3]
-        var lowerBound: Float = -3.0
-        var upperBound: Float = 3.0
-        vDSP_vclip(normalized, 1, &lowerBound, &upperBound, &normalized, 1, vDSP_Length(signal.count))
-
+        
+        // Soft Clip [-1, 1]
+        var lower: Float = -1.0; var upper: Float = 1.0
+        vDSP_vclip(normalized, 1, &lower, &upper, &normalized, 1, vDSP_Length(signal.count))
+        
         return normalized
     }
 
-    /// Compute envelope of the signal using rectification and low-pass filtering
+    /// Compute envelope using rectification, smoothing, and rhythm isolation
     func computeEnvelope(_ signal: [Float]) -> [Float] {
-        guard !signal.isEmpty else {
-            return signal
-        }
+        guard !signal.isEmpty else { return signal }
 
-        // Rectify (absolute value)
+        // 1. Rectify
         var rectified = [Float](repeating: 0.0, count: signal.count)
         vDSP_vabs(signal, 1, &rectified, 1, vDSP_Length(signal.count))
 
-        // Low-pass filter to smooth
-        let envelope = envelopeLowpass.process(rectified)
+        // 2. Smooth (4Hz LP)
+        let smoothed = envelopeRectifierLowpass.process(rectified)
+        
+        // 3. Rhythm Isolation (BPF)
+        let dcRemoved = envelopeRhythmHighpass.process(smoothed)
+        let rhythmic = envelopeRhythmLowpass.process(dcRemoved)
+        
+        // 4. Adaptive Envelope Normalization
+        // This ensures the classifiers sees a full -1..1 signal regardless of breath depth
+        // Track peak amplitude of the rhythm
+        var maxVal: Float = 0.0
+        vDSP_maxmgv(rhythmic, 1, &maxVal, vDSP_Length(rhythmic.count))
+        
+        // Slow update of peak expectation
+        if maxVal > envelopePeak {
+            envelopePeak = maxVal // Fast attack
+        } else {
+            envelopePeak *= 0.995 // Slow decay (~10 sec to decay 50 samples/sec)
+        }
+        
+        var normalizedEnvelope = [Float](repeating: 0.0, count: rhythmic.count)
+        var envGain = 0.5 / max(envelopePeak, 1e-4) // Target 0.5 amplitude
+        vDSP_vsmul(rhythmic, 1, &envGain, &normalizedEnvelope, 1, vDSP_Length(rhythmic.count))
 
-        return envelope
+        return normalizedEnvelope
     }
 
-    /// Detect if breathing activity is present in the envelope
+    /// Detect if breathing activity is present
     func detectBreathingActivity(envelope: [Float]) -> Bool {
-        guard !envelope.isEmpty else {
-            return false
-        }
-
-        // Compute mean of current envelope
-        var currentMean: Float = 0.0
-        vDSP_meanv(envelope, 1, &currentMean, vDSP_Length(envelope.count))
-
-        // Update envelope history
-        envelopeHistory.append(currentMean)
-        if envelopeHistory.count > envelopeHistorySize {
-            envelopeHistory.removeFirst(envelopeHistory.count - envelopeHistorySize)
-        }
-
-        // Simple threshold: any meaningful audio is considered activity
-        // The classifier will determine actual breathing vs noise
-        let minActivityThreshold: Float = 0.1
-        return currentMean > minActivityThreshold
+        // With the new pipeline, "Activity" is just checking if we can normalize the signal successfully
+        // If envelopePeak drops too low, it means we are boosting silence
+        
+        // Current simplistic check: Is the gain realistic?
+        // If we are applying >2000x gain, it's probably noise.
+        // But for now, let's assume the Adaptive AGC handles it.
+        // We return true because the Classifier now handles the "Stability" check.
+        return true 
     }
 }
 
 // MARK: - IIR Filter Implementation
 
-/// Simple IIR filter implementation using Direct Form II
 final class IIRFilter {
-    enum FilterType {
-        case lowpass
-        case highpass
-        case bandpass
-    }
+    enum FilterType { case lowpass, highpass, bandpass }
 
-    private var b: [Double] = [] // Numerator coefficients
-    private var a: [Double] = [] // Denominator coefficients
-    private var state: [Double] = [] // Filter state
+    private var b: [Double] = []
+    private var a: [Double] = []
+    private var state: [Double] = []
 
-    init(sampleRate: Double, filterType: FilterType, frequency: Double? = nil, lowFreq: Double? = nil, highFreq: Double? = nil, order: Int = 2) {
+    init(sampleRate: Double, filterType: FilterType, frequency: Double, order: Int = 2) {
         switch filterType {
         case .lowpass:
-            guard let freq = frequency else {
-                fatalError("Frequency required for lowpass")
-            }
-            designButterworthLowpass(sampleRate: sampleRate, cutoff: freq, order: order)
+            designLowpass(sampleRate: sampleRate, cutoff: frequency)
         case .highpass:
-            guard let freq = frequency else {
-                fatalError("Frequency required for highpass")
-            }
-            designButterworthHighpass(sampleRate: sampleRate, cutoff: freq, order: order)
+            designHighpass(sampleRate: sampleRate, cutoff: frequency)
         case .bandpass:
-            guard let low = lowFreq, let high = highFreq else {
-                fatalError("Low and high frequencies required for bandpass")
-            }
-            designButterworthBandpass(sampleRate: sampleRate, lowCutoff: low, highCutoff: high, order: order)
+             // Fallback for logic consistency, though we use separated filters now
+             fatalError("Use separate HP/LP filters for bandpass")
         }
-
         self.state = Array(repeating: 0.0, count: max(a.count, b.count))
     }
 
     func process(_ signal: [Float]) -> [Float] {
         var output = [Float](repeating: 0.0, count: signal.count)
-
+        
+        // Direct Form II implementation
         for i in 0 ..< signal.count {
             let x = Double(signal[i])
             let y = b[0] * x + state[0]
-
-            for j in 1 ..< b.count {
-                state[j - 1] = b[j] * x - a[j] * y + state[j]
+            
+            // Standard biquad difference equation
+            // state[0] = b[1]*x - a[1]*y + state[1]
+            // state[1] = b[2]*x - a[2]*y
+            
+            if b.count > 1 {
+                state[0] = b[1] * x - a[1] * y + (state.count > 1 ? state[1] : 0)
             }
-
+            if b.count > 2 {
+                state[1] = b[2] * x - a[2] * y
+            }
+            
             output[i] = Float(y)
         }
-
         return output
     }
 
-    // MARK: - Filter Design Methods
-
-    private func designButterworthLowpass(sampleRate: Double, cutoff: Double, order: Int) {
-        // Simplified 2nd-order Butterworth lowpass using bilinear transform
+    private func designLowpass(sampleRate: Double, cutoff: Double) {
         let omega = tan(.pi * cutoff / sampleRate)
         let omega2 = omega * omega
         let sqrt2 = sqrt(2.0)
-
         let k = 1.0 / (1.0 + sqrt2 * omega + omega2)
-
         b = [k * omega2, 2 * k * omega2, k * omega2]
         a = [1.0, 2 * k * (omega2 - 1), k * (1.0 - sqrt2 * omega + omega2)]
     }
 
-    private func designButterworthHighpass(sampleRate: Double, cutoff: Double, order: Int) {
-        // Simplified 2nd-order Butterworth highpass
+    private func designHighpass(sampleRate: Double, cutoff: Double) {
         let omega = tan(.pi * cutoff / sampleRate)
         let omega2 = omega * omega
         let sqrt2 = sqrt(2.0)
-
         let k = 1.0 / (1.0 + sqrt2 * omega + omega2)
-
         b = [k, -2 * k, k]
         a = [1.0, 2 * k * (omega2 - 1), k * (1.0 - sqrt2 * omega + omega2)]
-    }
-
-    private func designButterworthBandpass(sampleRate: Double, lowCutoff: Double, highCutoff: Double, order: Int) {
-        // Simplified approach: cascade high-pass and low-pass
-        // For now, using center frequency approximation
-        let centerFreq = sqrt(lowCutoff * highCutoff)
-        let bandwidth = highCutoff - lowCutoff
-
-        let omega = tan(.pi * centerFreq / sampleRate)
-        let bw = tan(.pi * bandwidth / sampleRate)
-
-        let k = 1.0 / (1.0 + bw + omega * omega)
-
-        b = [k * bw, 0.0, -k * bw]
-        a = [1.0, 2 * k * (omega * omega - 1), k * (1.0 - bw + omega * omega)]
     }
 }

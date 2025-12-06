@@ -175,16 +175,28 @@ struct ContentView: View {
                 .font(.headline)
                 .foregroundStyle(breathingStateColor)
 
-            // Audio level bars
-            HStack(spacing: 3) {
-                ForEach(0..<7, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(audioBarColor(for: index))
-                        .frame(width: 8, height: audioBarHeight(for: index))
-                        .animation(.easeOut(duration: 0.15), value: ringSessionManager.currentBreathingState)
+            // Real-time audio level meter
+            VStack(spacing: 4) {
+                Text("Mic Level")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        // Background
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.gray.opacity(0.2))
+                        
+                        // Level indicator
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(audioLevelColor)
+                            .frame(width: geo.size.width * CGFloat(ringSessionManager.currentAudioLevel))
+                            .animation(.easeOut(duration: 0.1), value: ringSessionManager.currentAudioLevel)
+                    }
                 }
+                .frame(height: 12)
+                .padding(.horizontal, 40)
             }
-            .frame(height: 40)
 
             // Breathing rate
             HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -198,6 +210,17 @@ struct ContentView: View {
         }
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
+    }
+
+    private var audioLevelColor: Color {
+        let level = ringSessionManager.currentAudioLevel
+        if level < 0.3 {
+            return .green
+        } else if level < 0.7 {
+            return .yellow
+        } else {
+            return .red
+        }
     }
 
     private var breathingCircleSize: CGFloat {
@@ -222,19 +245,6 @@ struct ContentView: View {
         case .exhale: "Breathing Out"
         case .none: "Waiting..."
         }
-    }
-
-    private func audioBarColor(for index: Int) -> Color {
-        let isActive = ringSessionManager.currentBreathingState != .none
-        let activeIndex = ringSessionManager.currentBreathingState == .inhale ? 6 - index : index
-        let threshold = isActive ? (ringSessionManager.currentBreathingState == .inhale ? 4 : 3) : 0
-        return activeIndex < threshold ? breathingStateColor : Color.gray.opacity(0.3)
-    }
-
-    private func audioBarHeight(for index: Int) -> CGFloat {
-        let baseHeights: [CGFloat] = [12, 20, 28, 36, 28, 20, 12]
-        let isActive = ringSessionManager.currentBreathingState != .none
-        return isActive ? baseHeights[index] : baseHeights[index] * 0.5
     }
 
     @ViewBuilder
