@@ -50,6 +50,10 @@ final class BreathingAudioEngine {
         // Connect tracker callbacks
         rateTracker.onRateUpdate = { [weak self] rate in
             self?.onBreathingRateUpdate?(rate)
+            
+            // Adaptive DSP Feedback Loop
+            // When we detect a rate, we tune the filters to focus on it
+            self?.dspProcessor.adaptProcessing(to: rate)
         }
 
         rateTracker.onEvent = { [weak self] event in

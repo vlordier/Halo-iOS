@@ -26,6 +26,11 @@ final class BreathingDSP {
     // Adaptive Normalization
     private var longTermRMS: Float = 0.001
     private var envelopePeak: Float = 0.005
+    
+    // Adaptive Tuning State
+    private var currentCenterFreq: Float = 0.3 // Default start ~18 BPM
+    private var currentBandwidth: Float = 0.7  // Wide start
+    private var isTracking: Bool = false
 
     // MARK: - Initialization
 
@@ -43,7 +48,7 @@ final class BreathingDSP {
         // 2. Envelope Smoothing (4Hz)
         envelopeRectifierLowpass = IIRFilter(sampleRate: sampleRate, filterType: .lowpass, frequency: 4.0)
         
-        // 3. Rhythm Isolation (0.1Hz - 0.8Hz)
+        // 3. Rhythm Isolation (Initial Wide Setup: 0.1Hz - 0.8Hz)
         // 0.1Hz = 6 BPM (Deep slow breathing)
         // 0.8Hz = 48 BPM (Fast hyperventilation)
         envelopeRhythmHighpass = IIRFilter(sampleRate: sampleRate, filterType: .highpass, frequency: 0.1)
@@ -51,6 +56,70 @@ final class BreathingDSP {
     }
 
     // MARK: - Public Methods
+    
+    /// Adaptively tune the filters to lock onto the detected breathing frequency
+    func adaptProcessing(to breathingRateBPM: Float) {
+        // Convert BPM to Hz
+        let targetFreq = breathingRateBPM / 60.0
+        
+        // Validate Frequency (6 BPM - 40 BPM range mostly)
+        guard targetFreq > 0.1, targetFreq < 0.7 else {
+            // Out of reasonable range, slowly relax back to default wide search
+            relaxFilters()
+            return
+        }
+        
+        isTracking = true
+        
+        // Smoothly interpolate towards the target frequency (Slew Limiting)
+        // This prevents the filter from jumping wildly on single bad measurements
+        let alpha: Float = 0.1 // 10% movement per update
+        currentCenterFreq = (currentCenterFreq * (1.0 - alpha)) + (targetFreq * alpha)
+        
+        // Tighten bandwidth when tracking
+        // Target bandwidth: Center ± 40%
+        let targetBW = currentCenterFreq * 0.8 // Total width
+        currentBandwidth = (currentBandwidth * (1.0 - alpha)) + (targetBW * alpha)
+        
+        // Calculate new cutoffs
+        // Ensure Highpass doesn't go below 0.1 Hz (DC drift safety)
+        var lowCutoff = max(0.1, currentCenterFreq - (currentBandwidth / 2.0))
+        // Ensure Lowpass doesn't go above 1.0 Hz (Noise safety)
+        var highCutoff = min(1.0, currentCenterFreq + (currentBandwidth / 2.0))
+        
+        // Ensure we don't cross (maintain minimum band of 0.1 Hz)
+        if highCutoff - lowCutoff < 0.1 {
+            highCutoff = lowCutoff + 0.1
+        }
+        
+        // Retune the filters
+        // Note: For Highpass filter, cutoff is the frequency below which it attenuates (The LOW bound of our passband)
+        envelopeRhythmHighpass.updateParameters(filterType: .highpass, frequency: Double(lowCutoff))
+        
+        // For Lowpass filter, cutoff is frequency above which it attenuates (The HIGH bound)
+        envelopeRhythmLowpass.updateParameters(filterType: .lowpass, frequency: Double(highCutoff))
+        
+        // print("🎛 Adaptive Filtering: Center: \(String(format: "%.2f", currentCenterFreq)) Hz (\(String(format: "%.0f", currentCenterFreq * 60)) BPM) | Band: \(String(format: "%.2f", lowCutoff))-\(String(format: "%.2f", highCutoff)) Hz")
+    }
+    
+    private func relaxFilters() {
+        // Slowly widen the window back to default (0.1 - 0.8 Hz)
+        let alpha: Float = 0.05
+        let defaultLow: Float = 0.1
+        let defaultHigh: Float = 0.8
+        
+        // Current cutoffs estimate
+        var currentLow = Float(envelopeRhythmHighpass.frequency)
+        var currentHigh = Float(envelopeRhythmLowpass.frequency)
+        
+        currentLow = (currentLow * (1.0 - alpha)) + (defaultLow * alpha)
+        currentHigh = (currentHigh * (1.0 - alpha)) + (defaultHigh * alpha)
+        
+        envelopeRhythmHighpass.updateParameters(filterType: .highpass, frequency: Double(currentLow))
+        envelopeRhythmLowpass.updateParameters(filterType: .lowpass, frequency: Double(currentHigh))
+        
+        isTracking = false
+    }
 
     /// Apply band-pass filter to isolate breath sounds (Airflow)
     func applyBandpassFilter(to signal: [Float]) -> [Float] {
@@ -119,11 +188,11 @@ final class BreathingDSP {
         var maxVal: Float = 0.0
         vDSP_maxmgv(rhythmic, 1, &maxVal, vDSP_Length(rhythmic.count))
         
-        // Slow update of peak expectation
+        // Slow update of peak expectation (Slower than before for stability)
         if maxVal > envelopePeak {
             envelopePeak = maxVal // Fast attack
         } else {
-            envelopePeak *= 0.995 // Slow decay (~10 sec to decay 50 samples/sec)
+            envelopePeak *= 0.999 // Very Slow decay to avoid pumping
         }
         
         var normalizedEnvelope = [Float](repeating: 0.0, count: rhythmic.count)
@@ -135,13 +204,10 @@ final class BreathingDSP {
 
     /// Detect if breathing activity is present
     func detectBreathingActivity(envelope: [Float]) -> Bool {
-        // With the new pipeline, "Activity" is just checking if we can normalize the signal successfully
-        // If envelopePeak drops too low, it means we are boosting silence
-        
-        // Current simplistic check: Is the gain realistic?
-        // If we are applying >2000x gain, it's probably noise.
-        // But for now, let's assume the Adaptive AGC handles it.
-        // We return true because the Classifier now handles the "Stability" check.
+        // Robustness check: if peak is extremely small, we are boosting noise
+        if envelopePeak < 0.0001 {
+            return false
+        }
         return true 
     }
 }
@@ -154,18 +220,31 @@ final class IIRFilter {
     private var b: [Double] = []
     private var a: [Double] = []
     private var state: [Double] = []
+    
+    // Properties to read back current state
+    private(set) var frequency: Double
+    private let sampleRate: Double
 
     init(sampleRate: Double, filterType: FilterType, frequency: Double, order: Int = 2) {
+        self.sampleRate = sampleRate
+        self.frequency = frequency
+        
+        // Initialize coefficients
+        updateParameters(filterType: filterType, frequency: frequency)
+        
+        self.state = Array(repeating: 0.0, count: max(a.count, b.count))
+    }
+    
+    func updateParameters(filterType: FilterType, frequency: Double) {
+        self.frequency = frequency
         switch filterType {
         case .lowpass:
             designLowpass(sampleRate: sampleRate, cutoff: frequency)
         case .highpass:
             designHighpass(sampleRate: sampleRate, cutoff: frequency)
         case .bandpass:
-             // Fallback for logic consistency, though we use separated filters now
              fatalError("Use separate HP/LP filters for bandpass")
         }
-        self.state = Array(repeating: 0.0, count: max(a.count, b.count))
     }
 
     func process(_ signal: [Float]) -> [Float] {
